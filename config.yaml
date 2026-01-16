@@ -1,0 +1,24 @@
+# Models
+teacher_model: "unsloth/Qwen2.5-3B-Instruct"
+student_model: "unsloth/Qwen2.5-0.5B-Instruct"
+
+# Data (Point to your uploaded files)
+train_file: ./data/date/train.jsonl
+val_file: ./data/date/test.jsonl
+prompt_column: "instruction"
+response_column: "response"  # Matches your json file keys
+
+# Training 
+lr: 2.0e-5  # Qwen0.5 2e-5
+batch_size: 1
+num_epochs: 3
+max_new_tokens: 1024
+teacher_gen_temperature: 0.0
+
+
+# Logging
+use_wandb: true
+wandb_project: "gsm8k-distillation"
+# run_name: "gemma" 
+eval_steps: 10
+save_steps: 10
