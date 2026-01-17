@@ -209,6 +209,12 @@ def reverse_kl_div_loss(
         return kl_per_position.sum()
     else:
         raise ValueError(f"Unsupported reduction: {reduction}")
+    
+KL_REGISTRY = {
+    "generalized_jsd": generalized_jsd_loss,
+    "forward": forward_kl_div_loss,
+    "reverse": reverse_kl_div_loss,
+}
 
 def compute_grpo_loss(
     logprobs: torch.Tensor,
