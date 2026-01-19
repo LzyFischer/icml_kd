@@ -253,7 +253,7 @@ def parse_args():
     # Logging
     parser.add_argument("--use_wandb", type=bool, default=True)
     parser.add_argument("--run_name", type=str, default="grpo_teacher_run")
-    parser.add_argument("--save_steps", type=int, default=100)
+    parser.add_argument("--save_steps", type=int, default=20)
     
     # Max samples
     parser.add_argument("--max_train_samples", type=int, default=None)

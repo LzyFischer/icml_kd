@@ -33,6 +33,7 @@ from eval_vllm import (
 
 # Suppress warnings
 warnings.filterwarnings("ignore")
+os.environ["VLLM_USE_V1"] = "0"
 
 # -----------------------------------------------------------------------------
 # Curriculum Learning Utilities
@@ -153,13 +154,13 @@ def compute_alignment_loss(
     mode: str,
     beta: float = 0.5,
     temperature: float = 1.0,
-    k: int = 10,
+    k: int = 1000,
     kl_fn=generalized_jsd_loss
 ) -> torch.Tensor:
     """
     Compute alignment loss based on curriculum mode.
     """
-    mode = "full"
+    mode = "ce"
     if mode == "ce":
         # Standard Cross Entropy (Hard Target KL)
         teacher_preds = teacher_logits.argmax(dim=-1)
@@ -191,7 +192,7 @@ def compute_alignment_loss(
     
     # Apply mask
     loss_per_token = loss_per_token * mask
-    
+
     return loss_per_token
 
 def select_topk_tokens_by_kl(
@@ -277,12 +278,11 @@ class CurriculumRewardFunction:
         teacher_model,
         tokenizer,
         curriculum_scheduler: CurriculumScheduler,
-        eval_type: str = "math",  # passed from DATASET_REGISTRY
+        eval_type: str = "math",
         device: str = "cuda",
         # Reward weights
         w_verified: float = 1.0,
         w_alignment: float = 0.5,
-        w_token_selection: float = 0.3,
         w_length: float = 0.2,
         w_answer_pred: float = 0.3,
         # Hyperparameters
@@ -298,13 +298,12 @@ class CurriculumRewardFunction:
         self.teacher_model = teacher_model
         self.tokenizer = tokenizer
         self.scheduler = curriculum_scheduler
-        self.eval_type = eval_type  # Store the evaluation type
+        self.eval_type = eval_type
         self.device = device
         
         # Weights
         self.w_verified = w_verified
         self.w_alignment = w_alignment
-        self.w_token_selection = w_token_selection
         self.w_length = w_length
         self.w_answer_pred = w_answer_pred
         
@@ -358,21 +357,16 @@ class CurriculumRewardFunction:
         token_percentage = self.scheduler.get_token_percentage()
         
         # =====================================================================
-        # 1. Verified Reward (Dynamic Verification based on Eval Type)
+        # 1. Verified Reward
         # =====================================================================
         verified_rewards = []
         for completion, ref in zip(completion_texts, reference):
-            # Use extract_prediction from eval_vllm with the specific eval_type
             prediction = extract_prediction(completion, self.eval_type)
-            
             is_correct = False
             
             if self.eval_type == "math":
-                # Use robust math comparison from eval_vllm
                 is_correct = math_answers_equal(prediction, ref)
             else:
-                # For MCQ, YesNo, ANLI - perform strict normalized string matching
-                # extract_prediction already handles logic like A/B/C or Yes/No extraction
                 is_correct = str(prediction).lower().strip() == str(ref).lower().strip()
             
             verified_rewards.append(1.0 if is_correct else 0.0)
@@ -380,7 +374,7 @@ class CurriculumRewardFunction:
         verified_rewards = torch.tensor(verified_rewards, device=self.device)
         
         # =====================================================================
-        # 2. Forward Passes & Alignments (Same as before)
+        # 2. Forward Passes
         # =====================================================================
         try:
             with torch.no_grad():
@@ -399,6 +393,31 @@ class CurriculumRewardFunction:
                     truncation=True
                 ).to(self.device)
                 
+                # --- NEW: GENERATE COMPLETION MASK ---
+                # We start with the padding mask (1 for real tokens, 0 for padding)
+                completion_mask = inputs.attention_mask.clone().float()
+                
+                # Iterate through batch to mask out the prompt tokens
+                for i, p_text in enumerate(prompt_texts):
+                    # We tokenize the prompt to find its length.
+                    # Note: We use add_special_tokens=True to match the behavior of 'inputs'
+                    # which likely includes a BOS token at the start.
+                    prompt_tokens = self.tokenizer(
+                        p_text, 
+                        return_tensors="pt", 
+                        add_special_tokens=True, 
+                        truncation=False
+                    ).input_ids[0]
+                    
+                    p_len = len(prompt_tokens)
+                    
+                    # Zero out the prompt part of the mask
+                    # Ensure we don't go out of bounds if prompt is somehow longer than max_len
+                    mask_len = min(p_len, completion_mask.shape[1])
+                    completion_mask[i, :mask_len] = 0.0
+                
+                # -------------------------------------
+
                 student_outputs = self.student_model(
                     input_ids=inputs.input_ids,
                     attention_mask=inputs.attention_mask,
@@ -420,26 +439,35 @@ class CurriculumRewardFunction:
                 )
                 teacher_logits = teacher_outputs.logits
                 
-                mask = inputs.attention_mask.float()
+                # Original mask for sequence lengths (includes prompt, excludes padding)
+                mask = inputs.attention_mask.float() 
                 seq_lengths = mask.sum(dim=1)
+                
         except Exception as e:
             print(f"Error in forward pass: {e}")
             return [1.0] * batch_size
         
         # 3. Alignment Reward
+        # CHANGED: Passed `completion_mask` instead of `mask`
         alignment_loss = compute_alignment_loss(
-            student_logits, teacher_logits, mask,
+            student_logits, teacher_logits, completion_mask,
             mode=alignment_mode, beta=0.5, temperature=1.0
         )
         
         # 4. Token Selection
+        # CHANGED: Passed `completion_mask` so we only select Top-K tokens from the ANSWER
         token_mask = select_topk_tokens_by_kl(
-            alignment_loss, mask, top_percentage=token_percentage
+            alignment_loss, completion_mask, top_percentage=token_percentage
         )
+        
+        # Compute mean alignment loss over the selected tokens
         masked_alignment = (alignment_loss * token_mask).sum(dim=1) / token_mask.sum(dim=1).clamp(min=1)
         alignment_rewards = -masked_alignment
         
         # 5. Length/Understanding Time
+        # Note: We likely still want to calculate understanding time based on the full flow,
+        # but if you want that restricted to answers too, use completion_mask here as well.
+        # Keeping original mask for now to capture prompt-response understanding dynamics.
         t_soft, _ = compute_student_understanding_time(
             student_hidden, ref_embeddings, mask, tau=self.tau, gamma=self.gamma
         )
@@ -447,7 +475,7 @@ class CurriculumRewardFunction:
             t_soft, seq_lengths, b=self.b, lambda_penalty=self.lambda_penalty
         )
         
-        # 6. Answer Prediction (Simplified)
+        # 6. Answer Prediction
         answer_pred_rewards = torch.zeros(batch_size, device=self.device)
         try:
             for i in range(batch_size):
@@ -466,9 +494,10 @@ class CurriculumRewardFunction:
             answer_pred_rewards = torch.ones(batch_size, device=self.device) * 0.5
         
         # 7. Combine
-        alignment_norm = torch.exp(alignment_rewards * 0.1)
+        alignment_norm = torch.exp(alignment_rewards) * 10.0
         length_norm = torch.exp(length_rewards * 0.1)
         answer_norm = (answer_pred_rewards + 1) / 2
+
         
         complex_reward = (
             (alignment_norm * self.w_alignment) +
@@ -555,23 +584,32 @@ def train_teacher(args):
     )
     
     print(f"Loading Trainer Model: {args.teacher_model}")
+    is_lora_checkpoint = os.path.exists(os.path.join(args.teacher_model, "adapter_config.json"))
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=args.teacher_model,
         max_seq_length=max_seq_length,
         load_in_4bit=args.load_in_4bit,
         fast_inference=True,
         max_lora_rank=lora_rank,
-        gpu_memory_utilization=0.6,
+        gpu_memory_utilization=0.7,
     )
-    
-    model = FastLanguageModel.get_peft_model(
-        model,
-        r=lora_rank,
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
-        lora_alpha=args.lora_alpha,
-        use_gradient_checkpointing="unsloth",
-        random_state=args.seed,
-    )
+
+    if not is_lora_checkpoint:
+        model = FastLanguageModel.get_peft_model(
+            model,
+            r=lora_rank,
+            target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+            lora_alpha=args.lora_alpha,
+            use_gradient_checkpointing="unsloth",
+            random_state=args.seed,
+        )
+    else:
+        # Iter 2+: LoRA checkpoint loaded (Unsloth auto-loaded adapters)
+        print(f"Resuming training from LoRA checkpoint: {args.student_model}")
+        
+        # Critical: Unsloth defaults to inference mode when loading adapters.
+        # We must explicitly enable training gradients for LoRA layers.
+        FastLanguageModel.for_training(model)
     
     print(f"Loading Student Model for Rewards: {args.student_model}")
     student_model, student_tokenizer = FastLanguageModel.from_pretrained(
@@ -623,7 +661,6 @@ def train_teacher(args):
         device="cuda",
         w_verified=args.w_verified,
         w_alignment=args.w_alignment,
-        w_token_selection=args.w_token_selection,
         w_length=args.w_length,
         w_answer_pred=args.w_answer_pred,
         tau=args.tau,
@@ -638,9 +675,9 @@ def train_teacher(args):
         output_dir=f"ckpts/{args.run_name}",
         run_name=args.run_name,
         learning_rate=args.teacher_lr,
-        # weight_decay=0.1,
-        # warmup_ratio=0.1,
-        lr_scheduler_type="cosine",
+        weight_decay=0.0,
+        warmup_ratio=0.0,
+        lr_scheduler_type="constant",
         optim="adamw_8bit",
         logging_steps=1,
         per_device_train_batch_size=args.batch_size,
@@ -718,23 +755,22 @@ def train_teacher(args):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, default="config.yaml")
+    parser.add_argument("--config", type=str, default=None)
     parser.add_argument("--teacher_model", type=str, default="unsloth/Qwen2.5-3B-Instruct")
     parser.add_argument("--student_model", type=str, default="unsloth/Qwen2.5-0.5B-Instruct")
-    parser.add_argument("--train_file", type=str, default="./data/gsm8k/train.jsonl")
+    parser.add_argument("--train_file", type=str, default="./data/date/train.jsonl")
     parser.add_argument("--dataset_name", type=str, default=None)
     parser.add_argument("--max_train_samples", type=int, default=None)
-    parser.add_argument("--teacher_lr", type=float, default=1e-5)
-    parser.add_argument("--batch_size", type=int, default=4)
-    parser.add_argument("--gradient_accumulation_steps", type=int, default=4)
-    parser.add_argument("--num_epochs", type=int, default=2)
-    parser.add_argument("--max_length", type=int, default=1024)
-    parser.add_argument("--max_new_tokens", type=int, default=1024)
-    parser.add_argument("--num_teacher_samples", type=int, default=4)
+    parser.add_argument("--teacher_lr", type=float, default=5e-6)
+    parser.add_argument("--batch_size", type=int, default=2)
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=64)
+    parser.add_argument("--num_epochs", type=int, default=4)
+    parser.add_argument("--max_length", type=int, default=1100)
+    parser.add_argument("--max_new_tokens", type=int, default=1100)
+    parser.add_argument("--num_teacher_samples", type=int, default=5)
     parser.add_argument("--curriculum_warmup_steps", type=int, default=0)
-    parser.add_argument("--w_verified", type=float, default=1.0)
-    parser.add_argument("--w_alignment", type=float, default=0.8)
-    parser.add_argument("--w_token_selection", type=float, default=0.05)
+    parser.add_argument("--w_verified", type=float, default=0.0)
+    parser.add_argument("--w_alignment", type=float, default=1.0)
     parser.add_argument("--w_length", type=float, default=0.0)
     parser.add_argument("--w_answer_pred", type=float, default=0.0)
     parser.add_argument("--tau", type=float, default=0.7)
@@ -744,7 +780,7 @@ def parse_args():
     parser.add_argument("--n_answer_tokens", type=int, default=10)
     parser.add_argument("--load_in_4bit", type=bool, default=True)
     parser.add_argument("--lora_r", type=int, default=16)
-    parser.add_argument("--lora_alpha", type=int, default=16)
+    parser.add_argument("--lora_alpha", type=int, default=32)
     parser.add_argument("--seed", type=int, default=3407)
     parser.add_argument("--use_wandb", type=bool, default=True)
     parser.add_argument("--run_name", type=str, default="grpo_curriculum")

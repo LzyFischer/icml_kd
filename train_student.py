@@ -11,6 +11,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedModel, P
 from accelerate import Accelerator
 import tqdm
 import warnings
+import pdb
 
 
 # Import from separated files
@@ -81,6 +82,7 @@ def student_phase(
             # generalized_jsd_loss_ in utils.py implements full JSD
             loss = generalized_jsd_loss(s_logits_distill, t_logits_distill, mask=mask, beta=args.beta, temperature=args.temperature)
 
+    pdb.set_trace()
     # Update student
     optimizer.zero_grad()
     accelerator.backward(loss)
@@ -283,7 +285,7 @@ def parse_args() -> argparse.Namespace:
     # Student phase args
     parser.add_argument("--lr", type=float, default=2e-5, help="Learning rate for student")
     parser.add_argument("--loss_type", type=str, default="generalized", choices=["sft", "forward", "reverse", "generalized"])
-    parser.add_argument("--student_mode", type=str, default="teacher_generated", choices=["supervised", "on_policy", "teacher_generated"])
+    parser.add_argument("--student_mode", type=str, default="supervised", choices=["supervised", "on_policy", "teacher_generated"])
     parser.add_argument("--teacher_gen_temperature", type=float, default=0.8, help="Temperature for teacher generation in distillation")
     
     # Common args

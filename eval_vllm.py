@@ -56,6 +56,8 @@ except ImportError:
     format_date = format_gsm8k = format_math = dummy_fmt
     format_strategy_qa = format_table_mwp = dummy_fmt
 
+os.environ["VLLM_USE_V1"] = "0"
+
 # -----------------------------------------------------------------------------
 # 2. Advanced Math Normalization
 # -----------------------------------------------------------------------------

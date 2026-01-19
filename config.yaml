@@ -1,5 +1,5 @@
 # Models
-teacher_model: "unsloth/Qwen2.5-3B-Instruct"
+teacher_model: /home/vjd5zr/project/icml_kd/ckpts/grpo_curriculum/checkpoint-318
 student_model: "unsloth/Qwen2.5-0.5B-Instruct"
 
 # Data (Point to your uploaded files)
