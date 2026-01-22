@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=1 python eval_vllm.py --datasets date --model_path /home/vjd5zr/project/icml_kd/ckpts/grpo_curriculum/checkpoint-318 --base_model unsloth/Qwen2.5-3B-Instruct
+CUDA_VISIBLE_DEVICES=0 python eval_vllm.py --datasets date --model_path /scratch/vjd5zr/project/icml_kd/ckpts/date/teacher/checkpoint-300 --base_model unsloth/Qwen2.5-3B-Instruct
 
 /scratch/vjd5zr/project/icml_kd/ckpts/math/student_model__student_t_unsloth_gemma-3-1b-it_s_unsloth_gemma-3-270m-it_step_40
 

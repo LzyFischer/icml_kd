@@ -72,7 +72,7 @@ def format_commonsense_qa(row) -> Tuple[str, str]:
             f"Question: {question}\n"
             f"{formatted_choices}\n"
             f"Please reason step by step, and conclude with your choice. Your response should end with "
-            f'"The best answer is [the_answer_letter]" where the [the_answer_letter] is one of A, B, C, D, or E.'
+            f'"The best answer is []" where the [] is one of A, B, C, D, or E.'
         )
     else:
         prompt = f"Question: {question}"

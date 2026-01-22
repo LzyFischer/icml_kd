@@ -56,7 +56,7 @@ except ImportError:
     format_date = format_gsm8k = format_math = dummy_fmt
     format_strategy_qa = format_table_mwp = dummy_fmt
 
-os.environ["VLLM_USE_V1"] = "0"
+os.environ["VLLM_USE_V1"] = "1"
 
 # -----------------------------------------------------------------------------
 # 2. Advanced Math Normalization
@@ -293,10 +293,18 @@ def normalize_anli_ref(ref: str) -> str:
     return ref.capitalize()
 
 def extract_reference(row: Dict, eval_type: str) -> str:
-    """Extract ground truth from dataset row."""
+    """
+    Extract ground truth from dataset row.
+    Handles distinct key names for different dataset types (e.g., 'label' for ANLI).
+    """
     if eval_type == "mcq":
         ref = row.get("answerKey", "")
+    elif eval_type == "anli":
+        # ANLI uses 'label' and needs normalization (entailment -> True)
+        raw_ref = row.get("label", row.get("answer", ""))
+        ref = normalize_anli_ref(raw_ref)
     else:
+        # Default fallback for Math/others usually found in 'answer'
         ref = str(row.get("answer", ""))
         
     return ref.strip()
