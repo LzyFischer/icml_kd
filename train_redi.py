@@ -371,6 +371,7 @@ class CurriculumRewardFunction:
         # Other
         n_answer_tokens: int = 20,
         kl_type: str = "generalized_jsd",
+        max_length: int = 2048,
     ):
         self.kl_fn = KL_REGISTRY[kl_type]
         self.student_model = student_model
@@ -379,6 +380,7 @@ class CurriculumRewardFunction:
         self.scheduler = curriculum_scheduler
         self.eval_type = eval_type
         self.device = device
+        self.max_length = max_length
 
         # Weights
         self.w_verified = w_verified
@@ -503,7 +505,7 @@ class CurriculumRewardFunction:
                     return_tensors="pt",
                     padding=True,
                     truncation=True,
-                    max_length=1024
+                    max_length=self.max_length,
                 ).to(self.device)
                 
                 # Generate completion mask
@@ -837,6 +839,7 @@ def train_teacher(args):
         kl_type=args.kl_type,
         swlp_beta=args.swlp_beta,
         swlp_temperature=args.swlp_temperature,
+        max_length=args.max_new_tokens,
     )
 
     training_args = GRPOConfig(
