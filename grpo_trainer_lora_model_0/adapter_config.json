@@ -3,11 +3,11 @@
   "alpha_pattern": {},
   "arrow_config": null,
   "auto_mapping": {
-    "base_model_class": "Qwen2ForCausalLM",
-    "parent_library": "transformers.models.qwen2.modeling_qwen2",
+    "base_model_class": "Gemma3ForCausalLM",
+    "parent_library": "transformers.models.gemma3.modeling_gemma3",
     "unsloth_fixed": true
   },
-  "base_model_name_or_path": "unsloth/qwen2.5-3b-instruct-unsloth-bnb-4bit",
+  "base_model_name_or_path": "unsloth/gemma-3-1b-it-unsloth-bnb-4bit",
   "bias": "none",
   "corda_config": null,
   "ensure_weight_tying": false,
@@ -33,13 +33,13 @@
   "rank_pattern": {},
   "revision": null,
   "target_modules": [
-    "o_proj",
     "down_proj",
-    "v_proj",
+    "gate_proj",
+    "o_proj",
+    "q_proj",
     "k_proj",
     "up_proj",
-    "q_proj",
-    "gate_proj"
+    "v_proj"
   ],
   "target_parameters": null,
   "task_type": "CAUSAL_LM",
