@@ -10,6 +10,7 @@ from trl import GRPOConfig, GRPOTrainer
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import List, Dict, Tuple, Optional, Union
 import math
+import json
 import wandb
 
 import pdb
@@ -693,15 +694,42 @@ def train_teacher(args):
     
     # CHANGED: Load dataset directly to access raw rows for extract_reference
     print(f"Loading data from: {args.train_file or args.dataset_name}...")
+
     try:
-        raw_ds = load_dataset("json", data_files={"train": args.train_file}, split="train")
-    except:
-         raw_ds = load_dataset("json", data_files={"train": args.train_file}, split="train", field="instances")
+        if path_or_name.endswith(".jsonl"):
+            ds = load_dataset("json", data_files={split: path_or_name}, split=split)
+        else:
+            ds = load_dataset("json", data_files={split: path_or_name}, field="instances", split=split)
+    except Exception as e:
+        # ATTEMPT 2: Fallback to Python JSON loading (Schema-agnostic)
+        print(f"Warning: load_dataset failed ({e}). Falling back to standard Python json/jsonl load.")
+        data = []
+        with open(args.train_file, "r", encoding="utf-8") as f:
+            if args.train_file.endswith(".jsonl"):
+                for line in f:
+                    if line.strip():
+                        try:
+                            data.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            continue
+            else:
+                try:
+                    full_data = json.load(f)
+                    if isinstance(full_data, list):
+                        data = full_data
+                    elif isinstance(full_data, dict) and "instances" in full_data:
+                        data = full_data["instances"]
+                    else:
+                        # Try flat dict
+                        data = [full_data]
+                except Exception:
+                    data = []
+        ds = data  # ds is now a simple list of dicts
          
     if args.max_train_samples:
-        raw_ds = raw_ds.select(range(min(len(raw_ds), args.max_train_samples)))
+        ds = ds.select(range(min(len(ds), args.max_train_samples)))
 
-    steps_per_epoch = len(raw_ds) // (args.batch_size * args.gradient_accumulation_steps)
+    steps_per_epoch = len(ds) // (args.batch_size * args.gradient_accumulation_steps)
     total_steps = steps_per_epoch * args.num_epochs
     
     curriculum_scheduler = CurriculumScheduler(
@@ -757,7 +785,7 @@ def train_teacher(args):
     # Also removed hardcoded system prompt, using simple chat template.
     formatter = dataset_config["formatter"]
     
-    for row in raw_ds:
+    for row in ds:
         try:
             # Get prompt string from formatter (ignore formatter's response)
             prompt_text, _ = formatter(row)

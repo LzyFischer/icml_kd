@@ -11,6 +11,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import List, Dict, Tuple, Optional, Union
 import math
 import wandb
+import json
 from contextlib import nullcontext
 import pdb
 
@@ -32,7 +33,7 @@ from eval_vllm import (
 
 # Suppress warnings
 warnings.filterwarnings("ignore")
-os.environ["VLLM_USE_V1"] = "1"
+# os.environ["VLLM_USE_V1"] = "1"
 
 # -----------------------------------------------------------------------------
 # Curriculum Learning Utilities
@@ -66,22 +67,22 @@ class CurriculumScheduler:
         CE -> top1_kl -> topk_kl -> full_kl
         """
         progress = self.get_progress()
-        if progress < 0.25:
-            return "ce"  # Cross-entropy loss
-        elif progress < 0.5:
-            return "top1_kl"  # KL on top-1 predictions
-        elif progress < 0.75:
-            return "topk_kl"  # KL on top-k predictions
+        if progress < 0.3:
+            return "top1_kl"  # Cross-entropy loss
+        elif progress < 0.9:
+            return "topk_kl"  # KL on top-1 predictions
+        elif progress < 1.0:
+            return "full_kl"  # KL on top-k predictions
         else:
             return "full_kl"  # Full KL divergence
 
     def get_token_percentage(self) -> float:
         """
         Get percentage of tokens to use in KL calculation.
-        Gradually increase from 10% to 100%.
+        Gradually increase from 30% to 100%.
         """
         progress = self.get_progress()
-        min_pct = 1.0
+        min_pct = 0.3
         max_pct = 1.0
         return min_pct + (max_pct - min_pct) * progress
 
@@ -263,7 +264,7 @@ def compute_full_kl_efficient(
     device = student_logits.device
     loss_per_token = torch.zeros(batch_size, seq_len, device=device)
     
-    chunk_size = 512
+    chunk_size = 128
     for start_idx in range(0, seq_len, chunk_size):
         end_idx = min(start_idx + chunk_size, seq_len)
         
@@ -463,7 +464,7 @@ class CurriculumRewardFunction:
         # =====================================================================
         # Micro-batching strategy
         # =====================================================================
-        micro_batch_size = 2  # 可以根据显存调整为1
+        micro_batch_size = 4  # 可以根据显存调整为1
         all_alignment_rewards = []
         all_swlp_rewards = []
         all_answer_pred_rewards = []
@@ -632,7 +633,7 @@ class CurriculumRewardFunction:
         answer_norm = (answer_pred_rewards + 1) / 2
 
         complex_reward = (
-            (alignment_norm * 10 * self.w_alignment)
+            (alignment_norm * self.w_alignment)
             + (length_norm * self.w_length)
             + (answer_norm * self.w_answer_pred)
         )
@@ -643,9 +644,9 @@ class CurriculumRewardFunction:
         metrics = {
             "reward/final_mean": final_reward.mean().item(),
             "reward/verified_mean": verified_rewards.mean().item(),
-            "reward/length_mean": length_norm.mean().item(),
+            # "reward/length_mean": length_norm.mean().item(),
             "reward/alignment_mean": alignment_norm.mean().item(),
-            "reward/swlp_length_penalty_mean": -length_norm.mean().item(),
+            "reward/swlp_length_penalty_mean": length_norm.mean().item(),
             "reward/redundancy_score": mean_redundancy.item(),
             "reward/answer_pred_mean": answer_norm.mean().item(),
             "curriculum/progress": self.scheduler.get_progress(),
@@ -694,21 +695,50 @@ def train_teacher(args):
     # -------------------------------------------------------------------------
     # Load Data & Models
     # -------------------------------------------------------------------------
+    print(f"Loading training data from: {args.train_file}")
 
-    # CHANGED: Load dataset directly to access raw rows for extract_reference
-    print(f"Loading data from: {args.train_file or args.dataset_name}...")
     try:
-        raw_ds = load_dataset("json", data_files={"train": args.train_file}, split="train")
-    except Exception:
-        raw_ds = load_dataset(
-            "json", data_files={"train": args.train_file}, split="train", field="instances"
-        )
-
+        if args.train_file.endswith(".jsonl"):
+            ds = load_dataset("json", data_files={"train": args.train_file}, split="train")
+        else:
+            ds = load_dataset("json", data_files={"train": args.train_file}, field="instances", split="train")
+    except Exception as e:
+        # ATTEMPT 2: Fallback to Python JSON loading (Schema-agnostic)
+        print(f"Warning: load_dataset failed ({e}). Falling back to standard Python json/jsonl load.")
+        data = []
+        with open(args.train_file, "r", encoding="utf-8") as f:
+            if args.train_file.endswith(".jsonl"):
+                for line in f:
+                    if line.strip():
+                        try:
+                            data.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            continue
+            else:
+                try:
+                    full_data = json.load(f)
+                    if isinstance(full_data, list):
+                        data = full_data
+                    elif isinstance(full_data, dict) and "instances" in full_data:
+                        data = full_data["instances"]
+                    else:
+                        # Try flat dict
+                        data = [full_data]
+                except Exception:
+                    data = []
+        ds = data  # ds is now a simple list of dicts
+         
     if args.max_train_samples:
-        raw_ds = raw_ds.select(range(min(len(raw_ds), args.max_train_samples)))
+        ds = ds.select(range(min(len(ds), args.max_train_samples)))
+    
 
-    steps_per_epoch = len(raw_ds) // (args.batch_size * args.gradient_accumulation_steps)
-    total_steps = steps_per_epoch * args.num_epochs
+    steps_per_epoch = len(ds) // (args.batch_size * args.gradient_accumulation_steps)
+    if args.max_steps > 0:
+        total_steps = args.max_steps
+        print(f"Mode: Max Steps detected. Training will stop after {total_steps} steps (Overriding epochs).")
+    else:
+        total_steps = steps_per_epoch * args.num_epochs
+        print(f"Mode: Epoch based. Training will stop after {args.num_epochs} epochs (~{total_steps} steps).")
 
     curriculum_scheduler = CurriculumScheduler(
         total_steps=total_steps,
@@ -762,22 +792,27 @@ def train_teacher(args):
     FastLanguageModel.for_inference(student_model)
 
     # Prepare Dataset
-    dataset_dict = {"prompt": [], "reference": []}
-
+    dataset_dict = {
+        "prompt": [],
+        "reference": []
+    }
+    
     # CHANGED: Use formatter for prompt, but extract_reference for truth.
     # Also removed hardcoded system prompt, using simple chat template.
     formatter = dataset_config["formatter"]
-
-    for row in raw_ds:
+    
+    for row in ds:
         try:
             # Get prompt string from formatter (ignore formatter's response)
             prompt_text, _ = formatter(row)
-
+            
             # Get strict reference from helper
             reference_text = extract_reference(row, eval_type)
-
+            
             # Use standard user prompt structure (no system prompt)
-            dataset_dict["prompt"].append([{"role": "user", "content": prompt_text}])
+            dataset_dict["prompt"].append([
+                {"role": "user", "content": prompt_text}
+            ])
             dataset_dict["reference"].append(reference_text)
         except Exception as e:
             print(f"Skipping row due to error: {e}")
@@ -818,7 +853,7 @@ def train_teacher(args):
         num_generations=args.num_teacher_samples,
         max_prompt_length=max_seq_length // 2,
         max_completion_length=args.max_new_tokens,
-        num_train_epochs=args.num_epochs,
+        max_steps=args.max_steps,
         save_steps=args.save_steps if args.save_steps > 0 else 100,
         max_grad_norm=1.0,
         report_to="wandb" if args.use_wandb else "none",
@@ -902,21 +937,22 @@ def parse_args():
     parser.add_argument("--teacher_lr", type=float, default=1e-5)
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=32)
-    parser.add_argument("--num_epochs", type=int, default=20)
+    parser.add_argument("--num_epochs", type=int, default=1)
+    parser.add_argument("--max_steps", type=int, default=-1)
     parser.add_argument("--max_length", type=int, default=1024)
     parser.add_argument("--max_new_tokens", type=int, default=1024)
     parser.add_argument("--num_teacher_samples", type=int, default=4)
     parser.add_argument("--curriculum_warmup_steps", type=int, default=0)
-    parser.add_argument("--w_verified", type=float, default=0.2)
+    parser.add_argument("--w_verified", type=float, default=0.4)
     parser.add_argument("--w_alignment", type=float, default=0.6)
-    parser.add_argument("--w_length", type=float, default=0.4)
-    parser.add_argument("--w_answer_pred", type=float, default=0.3)
+    parser.add_argument("--w_length", type=float, default=0.6)
+    parser.add_argument("--w_answer_pred", type=float, default=0.4)
     parser.add_argument("--swlp_beta", type=float, default=0.01, help="Penalty coefficient per redundant step")
-    parser.add_argument("--swlp_temperature", type=float, default=0.5, help="Temperature for unimportance prob")
+    parser.add_argument("--swlp_temperature", type=float, default=4, help="Temperature for unimportance prob")
     parser.add_argument("--n_answer_tokens", type=int, default=10)
     parser.add_argument("--load_in_4bit", type=bool, default=True)
-    parser.add_argument("--lora_r", type=int, default=16)
-    parser.add_argument("--lora_alpha", type=int, default=32)
+    parser.add_argument("--lora_r", type=int, default=8)
+    parser.add_argument("--lora_alpha", type=int, default=16)
     parser.add_argument("--seed", type=int, default=3407)
     parser.add_argument("--use_wandb", type=bool, default=True)
     parser.add_argument("--run_name", type=str, default="teacher")

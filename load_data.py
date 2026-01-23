@@ -1,5 +1,6 @@
 import os
 import torch
+import json
 from dataclasses import dataclass
 from typing import List, Tuple, Dict, Union, Callable, Optional
 from datasets import load_dataset
@@ -124,7 +125,7 @@ def format_math(row) -> Tuple[str, str]:
 def format_strategy_qa(row) -> Tuple[str, str]:
     """Formats StrategyQA yes/no questions."""
     question = row.get("question", "")
-    prompt = f"Question: Yes or No: {question}\n\nPlease reason step by step, and conclude with either \"Yes\" or \"No\"."
+    prompt = f"Question: True or False: {question}\n\nPlease reason step by step, and conclude with either \"True\" or \"False\"."
     return prompt, row.get("response", "")
 
 def format_table_mwp(row) -> Tuple[str, str]:
@@ -144,15 +145,40 @@ def format_table_mwp(row) -> Tuple[str, str]:
 def load_data_source(path_or_name: str, split: str = "train", prompt_col: str = "instruction", resp_col: str = "response", limit: Optional[int] = None) -> List[Example]:
     print(f"Loading data from: {path_or_name}...")
     
+    ds = None
+    
     if os.path.isfile(path_or_name):
-        if path_or_name.endswith(".jsonl"):
-            ds = load_dataset("json", data_files={split: path_or_name}, split=split)
-        else:
-            try:
-                ds = load_dataset("json", data_files={split: path_or_name}, field="instances", split=split)
-            except Exception:
-                print("Could not load with field='instances', trying flat JSON...")
+        # ATTEMPT 1: Try Standard HuggingFace Loading
+        try:
+            if path_or_name.endswith(".jsonl"):
                 ds = load_dataset("json", data_files={split: path_or_name}, split=split)
+            else:
+                ds = load_dataset("json", data_files={split: path_or_name}, field="instances", split=split)
+        except Exception as e:
+            # ATTEMPT 2: Fallback to Python JSON loading (Schema-agnostic)
+            print(f"Warning: load_dataset failed ({e}). Falling back to standard Python json/jsonl load.")
+            data = []
+            with open(path_or_name, "r", encoding="utf-8") as f:
+                if path_or_name.endswith(".jsonl"):
+                    for line in f:
+                        if line.strip():
+                            try:
+                                data.append(json.loads(line))
+                            except json.JSONDecodeError:
+                                continue
+                else:
+                    try:
+                        full_data = json.load(f)
+                        if isinstance(full_data, list):
+                            data = full_data
+                        elif isinstance(full_data, dict) and "instances" in full_data:
+                            data = full_data["instances"]
+                        else:
+                            # Try flat dict
+                            data = [full_data]
+                    except Exception:
+                        data = []
+            ds = data  # ds is now a simple list of dicts
     else:
         ds = load_dataset(path_or_name, split=split)
 

@@ -242,10 +242,10 @@ def extract_yesno_prediction(text: str) -> str:
     """Extract Yes/No answer."""
     snippet = text[-50:].lower() if len(text) > 50 else text.lower()
     
-    if "yes" in snippet and "no" not in snippet: return "Yes"
-    if "no" in snippet and "yes" not in snippet: return "No"
+    if "true" in snippet and "false" not in snippet: return "True"
+    if "false" in snippet and "true" not in snippet: return "False"
     
-    matches = re.findall(r"\b(yes|no)\b", snippet)
+    matches = re.findall(r"\b(true|false)\b", snippet)
     if matches:
         return matches[-1].capitalize()
         
@@ -255,8 +255,8 @@ def extract_anli_prediction(text: str) -> str:
     """Extract ANLI prediction (True/False/Neither)."""
     snippet = text[-100:].lower()
     
-    if "true" in snippet or "entailment" in snippet: return "True"
-    if "false" in snippet or "contradiction" in snippet: return "False"
+    if "true" in snippet or "entailment" in snippet or "yes" in snippet: return "True"
+    if "false" in snippet or "contradiction" in snippet or "no" in snippet: return "False"
     if "neither" in snippet or "neutral" in snippet: return "Neither"
     
     return "N/A"
