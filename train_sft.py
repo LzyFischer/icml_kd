@@ -136,6 +136,7 @@ def parse_args():
     parser.add_argument("--learning_rate", type=float, default=1e-5, help="Learning rate for the AdamW optimizer.")
     parser.add_argument("--batch_size", type=int, default=4, help="Batch size per device for training.")
     parser.add_argument("--num_epochs", type=int, default=2, help="Number of training epochs.")
+    parser.add_argument("--max_steps", type=int, default=-1, help="If > 0: set total number of training steps to perform. Overrides num_epochs.")
     parser.add_argument("--max_length", type=int, default=1024, help="Maximum sequence length for the tokenizer.")
     parser.add_argument("--kl_weight", type=float, default=0.1, help="Weight applied to the KL divergence term in the loss.")
     parser.add_argument("--kl_temperature", type=float, default=1.0, help="Temperature used when computing KL divergence.")
@@ -286,72 +287,76 @@ def main():
     total_steps = len(train_dataloader) * args.num_epochs
     step_count = 0
     print("Starting supervised fine‑tuning with KL divergence...")
-    
-    for epoch in range(args.num_epochs):
-        print(f"Epoch {epoch + 1}/{args.num_epochs}")
-        for batch_idx, batch in enumerate(train_dataloader):
-            input_ids = batch["input_ids"].to(device)
-            attention_mask = batch["attention_mask"].to(device)
-            labels = batch["labels"].to(device)
+    with torch.cuda.amp.autocast():
+        for epoch in range(args.num_epochs):
+            print(f"Epoch {epoch + 1}/{args.num_epochs}")
+            for batch_idx, batch in enumerate(train_dataloader):
+                input_ids = batch["input_ids"].to(device)
+                attention_mask = batch["attention_mask"].to(device)
+                labels = batch["labels"].to(device)
 
-            # Forward pass teacher
-            outputs = teacher_model(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-            )
-            teacher_logits = outputs.logits
-            
-            # Cross Entropy Loss
-            ce_loss = F.cross_entropy(
-                teacher_logits.view(-1, teacher_logits.size(-1)),
-                labels.view(-1),
-                ignore_index=-100,
-            )
-            
-            # Forward pass student (no grad)
-            with torch.no_grad():
-                student_outputs = student_model(
+                # Forward pass teacher
+                outputs = teacher_model(
                     input_ids=input_ids,
                     attention_mask=attention_mask,
                 )
-                student_logits = student_outputs.logits
-            
-            # KL Divergence Loss
-            kl_per_token = compute_full_kl_efficient(
-                student_logits=student_logits,
-                teacher_logits=teacher_logits,
-                temperature=args.kl_temperature,
-            )
-            kl_mask = (labels != -100).to(kl_per_token.dtype)
-            kl_loss = (kl_per_token * kl_mask).sum() / kl_mask.sum().clamp(min=1)
-            
-            # Combined Loss
-            loss = ce_loss + args.kl_weight * kl_loss
+                teacher_logits = outputs.logits
+                
+                # Cross Entropy Loss
+                ce_loss = F.cross_entropy(
+                    teacher_logits.view(-1, teacher_logits.size(-1)),
+                    labels.view(-1),
+                    ignore_index=-100,
+                )
+                
+                # Forward pass student (no grad)
+                with torch.no_grad():
+                    student_outputs = student_model(
+                        input_ids=input_ids,
+                        attention_mask=attention_mask,
+                    )
+                    student_logits = student_outputs.logits
+                
+                # KL Divergence Loss
+                kl_per_token = compute_full_kl_efficient(
+                    student_logits=student_logits,
+                    teacher_logits=teacher_logits,
+                    temperature=args.kl_temperature,
+                )
+                kl_mask = (labels != -100).to(kl_per_token.dtype)
+                kl_loss = (kl_per_token * kl_mask).sum() / kl_mask.sum().clamp(min=1)
+                
+                # Combined Loss
+                loss = ce_loss + args.kl_weight * kl_loss
 
-            loss.backward()
-            optimizer.step()
-            optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
 
-            step_count += 1
+                step_count += 1
+
+                if args.max_steps > 0 and step_count >= args.max_steps:
+                    print(f"Reached max_steps of {args.max_steps}. Ending training.")
+                    break
+                
+                # 3. Log metrics to WandB
+                if args.use_wandb:
+                    wandb.log({
+                        "train/total_loss": loss.item(),
+                        "train/ce_loss": ce_loss.item(),
+                        "train/kl_loss": kl_loss.item(),
+                        "train/epoch": epoch + (batch_idx / len(train_dataloader)),
+                        "train/step": step_count,
+                    })
+
+                if args.save_steps > 0 and step_count % args.save_steps == 0:
+                    save_dir = os.path.join("ckpts", dataset_name, args.run_name)
+                    os.makedirs(save_dir, exist_ok=True)
+                    ckpt_path = os.path.join(save_dir, f"step_{step_count}_lora")
+                    teacher_model.save_lora(ckpt_path)
+                    print(f"Saved checkpoint at step {step_count} to {ckpt_path}")
             
-            # 3. Log metrics to WandB
-            if args.use_wandb:
-                wandb.log({
-                    "train/total_loss": loss.item(),
-                    "train/ce_loss": ce_loss.item(),
-                    "train/kl_loss": kl_loss.item(),
-                    "train/epoch": epoch + (batch_idx / len(train_dataloader)),
-                    "train/step": step_count,
-                })
-
-            if args.save_steps > 0 and step_count % args.save_steps == 0:
-                save_dir = os.path.join("ckpts", dataset_name, args.run_name)
-                os.makedirs(save_dir, exist_ok=True)
-                ckpt_path = os.path.join(save_dir, f"step_{step_count}_lora")
-                teacher_model.save_lora(ckpt_path)
-                print(f"Saved checkpoint at step {step_count} to {ckpt_path}")
-        
-        print(f"Completed epoch {epoch + 1}")
+            print(f"Completed epoch {epoch + 1}")
 
     # -------------------------------------------------------------------------
     # Save final

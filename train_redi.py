@@ -218,48 +218,66 @@ def compute_top1_kl_efficient(
     teacher_logits: torch.Tensor,
     temperature: float = 1.0,
 ) -> torch.Tensor:
-    """Memory-efficient top-1 KL using cross-entropy."""
     teacher_targets = teacher_logits.argmax(dim=-1)
+    
+    # 增加 clamp 防止 logit 爆炸
+    student_logits = torch.clamp(student_logits, min=-100, max=100) 
+    
     loss_per_token = F.cross_entropy(
-        student_logits.view(-1, student_logits.size(-1)),
+        student_logits.view(-1, student_logits.size(-1)) / temperature, # 记得除以温度
         teacher_targets.view(-1),
         reduction='none'
     ).view(student_logits.shape[:-1])
+    
+    # 同样加上 nan_to_num
+    loss_per_token = torch.nan_to_num(loss_per_token, nan=0.0)
+    
     return loss_per_token
 
 
 def compute_topk_kl_efficient(
     student_logits: torch.Tensor,
     teacher_logits: torch.Tensor,
-    k: int = 100,  # 默认改为100，减少显存
+    k: int = 100,
     temperature: float = 1.0,
 ) -> torch.Tensor:
-    """Memory-efficient top-k KL with sequential batch processing."""
+    """Memory-efficient top-k KL using log_softmax for stability."""
     batch_size, seq_len, vocab_size = student_logits.shape
     device = student_logits.device
     loss_per_token = torch.zeros(batch_size, seq_len, device=device)
     
+    # 加上一个小数值防止除0 (虽然 log_softmax 不需要，但为了保险)
+    epsilon = 1e-8 
+
     for b in range(batch_size):
+        # 1. 获取 Teacher 的 Top-K
         topk_vals, topk_indices = teacher_logits[b].topk(k, dim=-1)
+        
+        # 2. 对齐 Student 的 logits
         student_topk = torch.gather(student_logits[b], -1, topk_indices)
         
-        student_probs = F.softmax(student_topk / temperature, dim=-1)
-        teacher_probs = F.softmax(topk_vals / temperature, dim=-1)
+        # 3. 使用 log_softmax 提高稳定性 (Key Change)
+        # Teacher
+        t_log_probs = F.log_softmax(topk_vals / temperature, dim=-1)
+        t_probs = torch.exp(t_log_probs)
         
-        kl = (teacher_probs * (teacher_probs.log() - student_probs.log())).sum(dim=-1)
+        # Student
+        s_log_probs = F.log_softmax(student_topk / temperature, dim=-1)
+        
+        # 4. 计算 KL: p * (log_p - log_q)
+        # 这里的 t_log_probs 和 s_log_probs 已经是 log 后的值了
+        kl = (t_probs * (t_log_probs - s_log_probs)).sum(dim=-1)
+        
         loss_per_token[b] = kl
         
-        del topk_vals, topk_indices, student_topk, student_probs, teacher_probs, kl
-    
     return loss_per_token
-
 
 def compute_full_kl_efficient(
     student_logits: torch.Tensor,
     teacher_logits: torch.Tensor,
     temperature: float = 1.0,
 ) -> torch.Tensor:
-    """Memory-efficient full KL with sequence chunking."""
+    """Memory-efficient full KL using log_softmax."""
     batch_size, seq_len, vocab_size = student_logits.shape
     device = student_logits.device
     loss_per_token = torch.zeros(batch_size, seq_len, device=device)
@@ -271,13 +289,13 @@ def compute_full_kl_efficient(
         s_chunk = student_logits[:, start_idx:end_idx, :]
         t_chunk = teacher_logits[:, start_idx:end_idx, :]
         
-        s_probs = F.softmax(s_chunk / temperature, dim=-1)
-        t_probs = F.softmax(t_chunk / temperature, dim=-1)
+        # Key Change: Use log_softmax
+        t_log_probs = F.log_softmax(t_chunk / temperature, dim=-1)
+        s_log_probs = F.log_softmax(s_chunk / temperature, dim=-1)
+        t_probs = torch.exp(t_log_probs)
         
-        kl_chunk = (t_probs * (t_probs.log() - s_probs.log())).sum(dim=-1)
+        kl_chunk = (t_probs * (t_log_probs - s_log_probs)).sum(dim=-1)
         loss_per_token[:, start_idx:end_idx] = kl_chunk
-        
-        del s_chunk, t_chunk, s_probs, t_probs, kl_chunk
     
     return loss_per_token
 
@@ -324,7 +342,6 @@ def compute_alignment_loss(
     Memory-efficient alignment loss.
     替换原有函数，移除未使用的参数以保持接口兼容。
     """
-    mode = "full_kl"
     if mode == "ce" or mode == "top1_kl":
         loss_per_token = compute_top1_kl_efficient(
             student_logits, teacher_logits, temperature=temperature
@@ -339,6 +356,9 @@ def compute_alignment_loss(
         )
     
     loss_per_token = loss_per_token * mask
+    if torch.isnan(loss_per_token).any() or torch.isinf(loss_per_token).any():
+        # print("Warning: NaN or Inf detected in alignment loss, masking them out.") # 调试用
+        loss_per_token = torch.nan_to_num(loss_per_token, nan=0.0, posinf=0.0, neginf=0.0)
     return loss_per_token
 
 
@@ -937,7 +957,7 @@ def parse_args():
     parser.add_argument("--train_file", type=str, default="./data/date/train.jsonl")
     parser.add_argument("--dataset_name", type=str, default=None)
     parser.add_argument("--max_train_samples", type=int, default=None)
-    parser.add_argument("--teacher_lr", type=float, default=1e-5)
+    parser.add_argument("--teacher_lr", type=float, default=2e-5)
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=32)
     parser.add_argument("--num_epochs", type=int, default=1)
