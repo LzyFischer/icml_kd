@@ -14,7 +14,7 @@ prompt_column: "instruction"
 response_column: "response"  # Matches your json file keys
 
 # Training 
-lr: 5.0e-5  # Qwen0.5 2e-5
+lr: 2.0e-5  # Qwen0.5 2e-5
 batch_size: 8
 num_epochs: 5
 max_new_tokens: 1024
