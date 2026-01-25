@@ -9,7 +9,7 @@ NUM_PASSES=1
 MAX_DATA_SAMPLES=""   # e.g. 500 for debug, empty = full train
 
 # train knobs (match your argparse)
-NUM_EPOCHS=5
+NUM_EPOCHS=4
 BATCH_SIZE=8
 LOSS_TYPE="forward"          # sft | forward | reverse | generalized
 STUDENT_MODE="supervised"  # supervised | on_policy | teacher_generated
