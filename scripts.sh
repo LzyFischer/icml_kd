@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=2 python eval_vllm.py --datasets gsm8k --model_path /home/zihan/icml_kd/ckpts/gsm8k/student_model__supervised_t__home_zihan_icml_kd_ckpts_gsm8k_teacher_checkpoint-200_s_unsloth_Qwen2.5-0.5B-Instruct_step_8450 --base_model unsloth/Qwen2.5-0.5B-Instruct
+CUDA_VISIBLE_DEVICES=2 python eval_vllm.py --datasets date --model_path /scratch/vjd5zr/project/icml_kd/ckpts/date/student_model__supervised_t_unsloth_gemma-3-1b-it_s_unsloth_gemma-3-270m-it_step_20 --base_model unsloth/gemma-3-270m-it
 
 CUDA_VISIBLE_DEVICES=2 python eval_vllm.py --datasets arc_challenge --model_path unsloth/Qwen2.5-0.5B-Instruct
 /home/zihan/icml_kd/ckpts/arc_challenge/student_model__supervised_t_unsloth_Qwen2.5-3B-Instruct_s_unsloth_Qwen2.5-0.5B-Instruct_step_250 --base_model unsloth/Qwen2.5-0.5B-Instruct

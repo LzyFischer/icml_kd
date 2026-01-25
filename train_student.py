@@ -211,8 +211,7 @@ def train_student(args: argparse.Namespace) -> None:
     total_iterations = args.num_epochs * len(train_dataloader)
     progress_bar = tqdm.tqdm(range(total_iterations), disable=not accelerator.is_main_process)
 
-    
-    args.save_dataset_name = args.dataset_name.replace("/", "_") if not args.val_file else os.path.basename(os.path.dirname(args.val_file))
+    args.save_dataset_name = args.dataset_name.replace("/", "_") if not args.val_file or "rank" in args.val_file else os.path.basename(os.path.dirname(args.val_file))
     os.makedirs(f"ckpts/{args.save_dataset_name}", exist_ok=True)
 
     for epoch in range(args.num_epochs):

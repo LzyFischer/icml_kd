@@ -8,6 +8,7 @@ import torch
 import torch.nn.functional as F
 from datasets import load_dataset, Dataset
 from torch.utils.data import DataLoader
+from contextlib import nullcontext
 
 # 1. Import wandb
 import wandb
@@ -287,7 +288,10 @@ def main():
     total_steps = len(train_dataloader) * args.num_epochs
     step_count = 0
     print("Starting supervised fine‑tuning with KL divergence...")
-    with torch.cuda.amp.autocast():
+
+    is_gemma = "gemma" in student_model.config._name_or_path
+    autocast_ctx = torch.autocast(device_type="cuda", dtype=torch.bfloat16) if is_gemma else nullcontext()
+    with autocast_ctx:
         for epoch in range(args.num_epochs):
             print(f"Epoch {epoch + 1}/{args.num_epochs}")
             for batch_idx, batch in enumerate(train_dataloader):

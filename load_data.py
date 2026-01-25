@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import List, Tuple, Dict, Union, Callable, Optional
 from datasets import load_dataset
 from transformers import PreTrainedTokenizer
+import pdb
 
 @dataclass
 class Example:
@@ -146,7 +147,6 @@ def load_data_source(path_or_name: str, split: str = "train", prompt_col: str = 
     print(f"Loading data from: {path_or_name}...")
     
     ds = None
-    
     if os.path.isfile(path_or_name):
         # ATTEMPT 1: Try Standard HuggingFace Loading
         try:
@@ -181,9 +181,11 @@ def load_data_source(path_or_name: str, split: str = "train", prompt_col: str = 
             ds = data  # ds is now a simple list of dicts
     else:
         ds = load_dataset(path_or_name, split=split)
-
     if limit:
-        ds = ds.select(range(min(len(ds), limit)))
+        try:
+            ds = ds.select(range(min(len(ds), limit)))
+        except Exception:
+            ds = ds[:limit]
 
     lower_name = path_or_name.lower()
     
