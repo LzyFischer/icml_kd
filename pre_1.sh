@@ -9,9 +9,9 @@ NUM_PASSES=1
 MAX_DATA_SAMPLES=""   # e.g. 500 for debug, empty = full train
 
 # train knobs (match your argparse)
-NUM_EPOCHS=1
-BATCH_SIZE=2
-LOSS_TYPE="sft"          # sft | forward | reverse | generalized
+NUM_EPOCHS=5
+BATCH_SIZE=8
+LOSS_TYPE="forward"          # sft | forward | reverse | generalized
 STUDENT_MODE="supervised"  # supervised | on_policy | teacher_generated
 TRAIN_TEMPERATURE=1.0        # for distill loss temperature
 TEACHER_GEN_TEMPERATURE=0.8
@@ -21,7 +21,7 @@ USE_UNSLOTH="True"
 LOAD_IN_4BIT="True"
 LR="2e-5"
 EVAL_STEPS=999999            # set very large to avoid mid-training eval (optional)
-SAVE_STEPS=0                 # only save at end
+SAVE_STEPS=10                 # only save at end
 
 # eval_vllm knobs
 EVAL_TP_SIZE=1
@@ -114,8 +114,6 @@ for dataset in "${DATASETS[@]}"; do
         --lr "${LR}" \
         --loss_type "${LOSS_TYPE}" \
         --student_mode "${STUDENT_MODE}" \
-        --temperature "${TRAIN_TEMPERATURE}" \
-        --teacher_gen_temperature "${TEACHER_GEN_TEMPERATURE}" \
         --max_length "${MAX_LENGTH}" \
         --max_new_tokens "${GEN_MAX_NEW_TOKENS}" \
         --mixed_precision "${MIXED_PRECISION}" \
