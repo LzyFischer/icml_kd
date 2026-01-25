@@ -135,7 +135,7 @@ def parse_args():
     parser.add_argument("--dataset_name", type=str, default=None, help="Optional name of the dataset used to look up formatters in the registry.")
     parser.add_argument("--max_train_samples", type=int, default=None, help="Truncate the training dataset to this many samples.")
     parser.add_argument("--learning_rate", type=float, default=1e-5, help="Learning rate for the AdamW optimizer.")
-    parser.add_argument("--batch_size", type=int, default=4, help="Batch size per device for training.")
+    parser.add_argument("--batch_size", type=int, default=8, help="Batch size per device for training.")
     parser.add_argument("--num_epochs", type=int, default=2, help="Number of training epochs.")
     parser.add_argument("--max_steps", type=int, default=-1, help="If > 0: set total number of training steps to perform. Overrides num_epochs.")
     parser.add_argument("--max_length", type=int, default=1024, help="Maximum sequence length for the tokenizer.")
