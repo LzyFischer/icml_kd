@@ -36,6 +36,7 @@ from datasets import load_dataset
 from vllm import LLM, SamplingParams
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import PreTrainedTokenizer
 from peft import PeftModel
 
 # -----------------------------------------------------------------------------
@@ -223,16 +224,36 @@ def extract_last_boxed(text: str) -> Optional[str]:
     return None
 
 def extract_mcq_prediction(text: str) -> str:
-    """Extract MCQ answer (A-F)."""
-    match = re.search(r"The best answer is\s+\[?\(?([A-F])\)?\]?", text, re.IGNORECASE)
-    if match:
-        return match.group(1).upper()
+    """
+    Extract MCQ answer (A-F).
+    Handles:
+    - "The best/correct/final answer is (A)"
+    - "The answer is **A**"
+    - "The option is C."
+    - "Answer: A"
+    - Fallback to last bracketed/bolded letter
+    """
+    # 1. Broad "Answer is" pattern (covers "best answer", "correct answer", "option is")
+    # We use findall and take the LAST match to handle chain-of-thought reasoning 
+    # where the model might discuss why "A is wrong" before concluding "B is correct".
+    # Regex breakdown:
+    #   (?:answer|option|choice)  -> keyword
+    #   (?: is)?                  -> optional verb (e.g., "The answer: A")
+    #   (?:[:\s\*\(\[\{]*)        -> junk separators (spaces, colons, *, [, (, {)
+    #   ([A-F])                   -> The target letter
+    #   \b                        -> Word boundary (prevents matching "A" in "Apple")
+    matches = re.findall(r"(?:answer|option|choice)(?: is)?\s*(?:[:\s\*\(\[\{]*)\s*([A-F])\b", text, re.IGNORECASE)
+    if matches:
+        return matches[-1].upper()
     
-    match = re.search(r"Answer:\s*([A-F])", text, re.IGNORECASE)
+    # 2. Explicit "Answer:" header (common in some finetunes)
+    match = re.search(r"Answer:\s*(?:[:\s\*\(\[\{]*)\s*([A-F])\b", text, re.IGNORECASE)
     if match:
         return match.group(1).upper()
         
-    matches = re.findall(r"\(([A-F])\)", text)
+    # 3. Fallback: Look for the last occurrence of specific patterns
+    # Handles: (A), [A], {A}, **A**, **A.**
+    matches = re.findall(r"(?:[\(\[\{]|\*\*)\s*([A-F])\s*(?:[\)\]\}]|\*\*|\.)", text)
     if matches:
         return matches[-1].upper()
         
@@ -337,6 +358,15 @@ class EvalExample:
 # -----------------------------------------------------------------------------
 # 6. Data Loading & Evaluation
 # -----------------------------------------------------------------------------
+def chat_template_prompt(
+    tokenizer: PreTrainedTokenizer,
+    prompt: str
+) -> str:
+    return tokenizer.apply_chat_template(
+        [{"role": "user", "content": prompt}],
+        tokenize=False,
+        add_generation_prompt=True
+    )
 
 def find_local_data_file(data_dir: str) -> Optional[str]:
     """Find test/validation file in dataset directory."""
@@ -362,11 +392,35 @@ def load_local_benchmark(dataset_name: str, data_root: str = "data", limit: int 
     if not data_file:
         raise FileNotFoundError(f"No suitable .jsonl file found in {dataset_dir}")
     
-    print(f"Loading {dataset_name} from: {data_file}")
-    try:
-        dataset = load_dataset("json", data_files={"test": data_file}, split="test")
-    except:
-        dataset = load_dataset("json", data_files={"test": data_file}, split="test", field="instances")
+    # print(f"Loading {dataset_name} from: {data_file}")
+    # try:
+    #     dataset = load_dataset("json", data_files={"test": data_file}, split="test")
+    # except:
+    #     dataset = load_dataset("json", data_files={"test": data_file}, split="test", field="instances")
+
+    data = []
+    with open(data_file, "r", encoding="utf-8") as f:
+        if data_file.endswith(".jsonl"):
+            for line in f:
+                if line.strip():
+                    try:
+                        data.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+        else:
+            try:
+                full_data = json.load(f)
+                if isinstance(full_data, list):
+                    data = full_data
+                elif isinstance(full_data, dict) and "instances" in full_data:
+                    data = full_data["instances"]
+                else:
+                    # Try flat dict
+                    data = [full_data]
+            except Exception:
+                data = []
+    
+    dataset = data
 
     if limit: dataset = dataset.select(range(min(len(dataset), limit)))
 
@@ -391,9 +445,15 @@ def load_local_benchmark(dataset_name: str, data_root: str = "data", limit: int 
             
     return examples, eval_type
 
-def evaluate_model(model: LLM, examples: List[EvalExample], eval_type: str, sampling_params: SamplingParams):
+def evaluate_model(model: LLM, examples: List[EvalExample], eval_type: str, sampling_params: SamplingParams, tokenizer: PreTrainedTokenizer):
     """Evaluate model on dataset."""
-    prompts = [ex.prompt for ex in examples]
+    prompts = []
+    for ex in examples:
+        if hasattr(tokenizer, "chat_template") and tokenizer.chat_template:
+            p = chat_template_prompt(tokenizer, ex.prompt)
+        else:
+            p = ex.prompt
+        prompts.append(p)
     outputs = model.generate(prompts, sampling_params)
     
     results = []
@@ -463,11 +523,14 @@ def main():
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--tp_size", type=int, default=1)
     parser.add_argument("--max_tokens", type=int, default=2048)
-    parser.add_argument("--temperature", type=float, default=0)
+    parser.add_argument("--temperature", type=float, default=0.5)
     args = parser.parse_args()
     
     final_model_path = merge_if_needed(args.model_path, args.base_model)
     model_slug = os.path.basename(args.model_path.rstrip("/"))
+
+    tokenizer_path = args.base_model or args.model_path
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, trust_remote_code=True)
     
     print(f"Loading vLLM from {final_model_path}...")
     llm = LLM(
@@ -487,7 +550,7 @@ def main():
                 print(f"Skipping {dataset_name} (empty).")
                 continue
                 
-            accuracy, results = evaluate_model(llm, examples, eval_type, sampling_params)
+            accuracy, results = evaluate_model(llm, examples, eval_type, sampling_params, tokenizer)
             print(f"Accuracy for {dataset_name}: {accuracy:.2%}")
             
             output_path = os.path.join(args.output_dir, dataset_name, model_slug)

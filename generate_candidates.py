@@ -54,11 +54,13 @@ import argparse
 import json
 import os
 from typing import List
+from tqdm import tqdm
 
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
 import gc
+import pdb
 
 from load_data import load_data_source
 
@@ -241,25 +243,25 @@ def main():
     parser.add_argument(
         "--teacher_model",
         type=str,
-        required=True,
+        default="unsloth/Qwen2.5-3B-Instruct",
         help="Identifier or path for the teacher model (may be LoRA adapter)",
     )
     parser.add_argument(
         "--base_model",
         type=str,
-        default=None,
+        default="unsloth/Qwen2.5-3B-Instruct",
         help="Base model to merge LoRA adapters into if needed. If omitted, teacher_model is assumed to be a full model.",
     )
     parser.add_argument(
         "--input_file",
         type=str,
-        required=True,
+        default="data/date/train.jsonl",
         help="Path to the training JSONL file containing prompts",
     )
     parser.add_argument(
         "--output_file",
         type=str,
-        required=True,
+        default="candidates/date/candidates.jsonl",
         help="Where to write the candidate responses JSONL",
     )
     parser.add_argument(
@@ -271,7 +273,7 @@ def main():
     parser.add_argument(
         "--num_generations",
         type=int,
-        default=5,
+        default=1,
         help=(
             "Number of responses to sample per prompt per pass. If combined with --num_passes, the total "
             "responses per prompt will be num_generations * num_passes."
@@ -305,7 +307,7 @@ def main():
     parser.add_argument(
         "--max_new_tokens",
         type=int,
-        default=256,
+        default=1024,
         help="Maximum number of tokens to generate per response",
     )
     parser.add_argument(
@@ -356,8 +358,8 @@ def main():
         print(f"Initializing vLLM engine for model {teacher_path}...")
         llm = LLM(
             model=teacher_path,
-            tensor_parallel_size=1,
-            trust_remote_code=True,
+            # tensor_parallel_size=1,
+            # trust_remote_code=True,
             gpu_memory_utilization=0.90,
         )
     else:
@@ -433,7 +435,7 @@ def main():
                     )
                 decoded_texts = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
                 # Group outputs per prompt: each prompt has num_generations outputs
-                for idx in range(total_prompts):
+                for idx in tqdm(range(total_prompts), desc="Processing generated outputs"):
                     prompt_text = prompts[idx]
                     start = idx * args.num_generations
                     end = start + args.num_generations
@@ -449,7 +451,7 @@ def main():
                 )
         else:
             # -- per prompt generation --
-            for idx, prompt in enumerate(prompts):
+            for idx, prompt in tqdm(enumerate(prompts), desc="Generating responses per prompt"):
                 if args.use_vllm:
                     replies = generate_responses_vllm(
                         llm=llm,

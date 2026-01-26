@@ -22,6 +22,7 @@ from eval_vllm import (
     DATASET_REGISTRY,
     extract_reference,
 )
+import pdb
 
 warnings.filterwarnings("ignore")
 
@@ -74,21 +75,17 @@ def build_chat_dataset(
     chats: List[List[Dict[str, str]]] = []
     formatter = dataset_config.get("formatter")
     for row in raw_ds:
-        try:
-            # The formatter returns a tuple (prompt_text, answer_text) but we
-            # ignore the answer_text here and rely on extract_reference for a
-            # ground‑truth answer.
-            prompt_text, _ = formatter(row)
-            reference_text = extract_reference(row, eval_type)
-            # Construct a two‑turn chat: user then assistant
-            chat = [
-                {"role": "user", "content": prompt_text},
-                {"role": "assistant", "content": reference_text},
-            ]
-            chats.append(chat)
-        except Exception:
-            # Skip problematic rows
-            continue
+        # The formatter returns a tuple (prompt_text, answer_text) but we
+        # ignore the answer_text here and rely on extract_reference for a
+        # ground‑truth answer.
+        prompt_text, _ = formatter(row)
+        reference_text = extract_reference(row, eval_type)
+        # Construct a two‑turn chat: user then assistant
+        chat = [
+            {"role": "user", "content": prompt_text},
+            {"role": "assistant", "content": reference_text},
+        ]
+        chats.append(chat)
     return Dataset.from_dict({"chat": chats})
 
 
@@ -134,15 +131,15 @@ def parse_args():
     parser.add_argument("--train_file", type=str, default="./data/date/train.jsonl", help="Path to the training dataset file (JSON or JSONL).")
     parser.add_argument("--dataset_name", type=str, default=None, help="Optional name of the dataset used to look up formatters in the registry.")
     parser.add_argument("--max_train_samples", type=int, default=None, help="Truncate the training dataset to this many samples.")
-    parser.add_argument("--learning_rate", type=float, default=1e-5, help="Learning rate for the AdamW optimizer.")
-    parser.add_argument("--batch_size", type=int, default=8, help="Batch size per device for training.")
-    parser.add_argument("--num_epochs", type=int, default=2, help="Number of training epochs.")
+    parser.add_argument("--learning_rate", type=float, default=4e-6, help="Learning rate for the AdamW optimizer.")
+    parser.add_argument("--batch_size", type=int, default=4, help="Batch size per device for training.")
+    parser.add_argument("--num_epochs", type=int, default=1, help="Number of training epochs.")
     parser.add_argument("--max_steps", type=int, default=-1, help="If > 0: set total number of training steps to perform. Overrides num_epochs.")
     parser.add_argument("--max_length", type=int, default=1024, help="Maximum sequence length for the tokenizer.")
     parser.add_argument("--kl_weight", type=float, default=0.1, help="Weight applied to the KL divergence term in the loss.")
     parser.add_argument("--kl_temperature", type=float, default=1.0, help="Temperature used when computing KL divergence.")
-    parser.add_argument("--lora_r", type=int, default=8, help="Rank of the LoRA adapters.")
-    parser.add_argument("--lora_alpha", type=int, default=16, help="Alpha parameter for the LoRA adapters.")
+    parser.add_argument("--lora_r", type=int, default=128, help="Rank of the LoRA adapters.")
+    parser.add_argument("--lora_alpha", type=int, default=128, help="Alpha parameter for the LoRA adapters.")
     parser.add_argument("--load_in_4bit", type=bool, default=True, help="Whether to load models in 4‑bit precision using bitsandbytes.")
     parser.add_argument("--seed", type=int, default=3407, help="Random seed for reproducibility.")
     parser.add_argument("--use_wandb", type=bool, default=True, help="Whether to log metrics to Weights & Biases.")
@@ -194,42 +191,41 @@ def main():
     eval_type = dataset_config.get("type", "text")
     
     print(f"Loading training data from: {args.train_file}")
-    try:
-        if args.train_file.endswith(".jsonl"):
-            ds = load_dataset("json", data_files={"train": args.train_file}, split="train")
-        else:
-            ds = load_dataset("json", data_files={"train": args.train_file}, field="instances", split="train")
-    except Exception as e:
+    # try:
+    #     if args.train_file.endswith(".jsonl"):
+    #         ds = load_dataset("json", data_files={"train": args.train_file}, split="train")
+    #     else:
+    #         ds = load_dataset("json", data_files={"train": args.train_file}, field="instances", split="train")
+    # except Exception as e:
         # ATTEMPT 2: Fallback to Python JSON loading (Schema-agnostic)
-        print(f"Warning: load_dataset failed ({e}). Falling back to standard Python json/jsonl load.")
-        data = []
-        with open(args.train_file, "r", encoding="utf-8") as f:
-            if args.train_file.endswith(".jsonl"):
-                for line in f:
-                    if line.strip():
-                        try:
-                            data.append(json.loads(line))
-                        except json.JSONDecodeError:
-                            continue
-            else:
-                try:
-                    full_data = json.load(f)
-                    if isinstance(full_data, list):
-                        data = full_data
-                    elif isinstance(full_data, dict) and "instances" in full_data:
-                        data = full_data["instances"]
-                    else:
-                        # Try flat dict
-                        data = [full_data]
-                except Exception:
-                    data = []
-        ds = data  # ds is now a simple list of dicts
+    # print(f"Warning: load_dataset failed ({e}). Falling back to standard Python json/jsonl load.")
+    data = []
+    with open(args.train_file, "r", encoding="utf-8") as f:
+        if args.train_file.endswith(".jsonl"):
+            for line in f:
+                if line.strip():
+                    try:
+                        data.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+        else:
+            try:
+                full_data = json.load(f)
+                if isinstance(full_data, list):
+                    data = full_data
+                elif isinstance(full_data, dict) and "instances" in full_data:
+                    data = full_data["instances"]
+                else:
+                    # Try flat dict
+                    data = [full_data]
+            except Exception:
+                data = []
+    ds = data  # ds is now a simple list of dicts
     if args.max_train_samples:
         ds = ds[: min(len(ds), args.max_train_samples)]
     
     train_ds = build_chat_dataset(ds, dataset_config, eval_type)
     print(f"Prepared {len(train_ds)} chat examples for training.")
-
     # -------------------------------------------------------------------------
     # Model and tokenizer loading
     # -------------------------------------------------------------------------
@@ -239,7 +235,7 @@ def main():
         model_name=args.teacher_model,
         max_seq_length=args.max_length,
         load_in_4bit=args.load_in_4bit,
-        fast_inference=True,
+        fast_inference=False,
         max_lora_rank=args.lora_r,
         gpu_memory_utilization=0.25,
     )
@@ -357,7 +353,9 @@ def main():
                     save_dir = os.path.join("ckpts", dataset_name, args.run_name)
                     os.makedirs(save_dir, exist_ok=True)
                     ckpt_path = os.path.join(save_dir, f"step_{step_count}_lora")
-                    teacher_model.save_lora(ckpt_path)
+                    teacher_model.save_pretrained(ckpt_path)
+                    # tokenizer
+                    teacher_tokenizer.save_pretrained(ckpt_path)
                     print(f"Saved checkpoint at step {step_count} to {ckpt_path}")
             
             print(f"Completed epoch {epoch + 1}")
@@ -367,7 +365,8 @@ def main():
     # -------------------------------------------------------------------------
     final_dir = os.path.join("ckpts", dataset_name, args.run_name)
     os.makedirs(final_dir, exist_ok=True)
-    teacher_model.save_lora(os.path.join(final_dir, "final_lora"))
+    teacher_model.save_pretrained(os.path.join(final_dir, "final_lora"))
+    teacher_tokenizer.save_pretrained(os.path.join(final_dir, "final_lora"))
     print(f"Training complete! LoRA adapters saved to {final_dir}/final_lora")
     
     if args.use_wandb:

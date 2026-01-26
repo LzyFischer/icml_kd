@@ -941,6 +941,8 @@ def train_teacher(args):
     trainer.train()
 
     model.save_lora(f"ckpts/{dataset_name}/{args.run_name}/final_lora")
+    # tokenizer
+    tokenizer.save_pretrained(f"ckpts/{dataset_name}/{args.run_name}/final_lora")
     print(f"Training complete! Model saved to ckpts/{args.run_name}/final_lora")
 
 

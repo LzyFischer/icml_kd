@@ -12,6 +12,21 @@ import tempfile
 # 复用 load_data 中的逻辑
 from load_data import load_data_source
 
+def apply_chat_template_if_available(tokenizer, prompts, add_generation_prompt=True):
+    """If tokenizer has chat_template, wrap prompts into chat format for inference."""
+    if hasattr(tokenizer, "chat_template") and tokenizer.chat_template:
+        wrapped = []
+        for p in prompts:
+            wrapped.append(
+                tokenizer.apply_chat_template(
+                    [{"role": "user", "content": p}],
+                    tokenize=False,
+                    add_generation_prompt=add_generation_prompt,
+                )
+            )
+        return wrapped
+    return prompts
+
 def merge_if_needed(model_path: str, base_model: str) -> str:
     """如果 model_path 是 LoRA adapter，将其合并到 base model 中以便 vLLM 加载"""
     # 简单的判断：如果路径下有 adapter_config.json 则是 LoRA
@@ -64,11 +79,18 @@ def main():
 
     # 3. vLLM 推理
     print(f"Initializing vLLM with {model_path_for_vllm}...")
+
+    tokenizer_path = args.base_model or args.model_path
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, trust_remote_code=True)
+
+    # ✅ NEW: apply chat template if available
+    prompts_for_vllm = apply_chat_template_if_available(tokenizer, prompts)
+
     llm = LLM(
         model=model_path_for_vllm,
         tensor_parallel_size=1,
         trust_remote_code=True,
-        gpu_memory_utilization=0.90
+        gpu_memory_utilization=0.80
     )
     
     sampling_params = SamplingParams(
@@ -77,7 +99,7 @@ def main():
     )
 
     print("Generating responses...")
-    outputs = llm.generate(prompts, sampling_params)
+    outputs = llm.generate(prompts_for_vllm, sampling_params)
 
     # 4. 保存结果
     os.makedirs(os.path.dirname(args.output_file), exist_ok=True)

@@ -1,0 +1,66 @@
+>>> Pipeline Start: gemma_sft_onpolicy on date
+>>> Train File: ./data/date/train.jsonl
+>>> Val File:   ./data/date/test.jsonl
+ckpts/date/student_model_iter_2_gemma_sft_onpolicy
+INFO 01-26 09:37:05 [__init__.py:216] Automatically detected platform cuda.
+Skipping import of cpp extensions due to incompatible torch version 2.8.0+cu128 for torchao version 0.15.0             Please see https://github.com/pytorch/ao/issues/2919 for more info
+`torch_dtype` is deprecated! Use `dtype` instead!
+Successfully imported formatters from load_data.py.
+
+[Merge] Merging adapter 'ckpts/date/student_model_iter_2_gemma_sft_onpolicy' into base 'unsloth/gemma-3-270m-it'...
+Loading vLLM from /tmp/merged_823qct4r...
+INFO 01-26 09:37:12 [utils.py:233] non-default args: {'trust_remote_code': True, 'gpu_memory_utilization': 0.85, 'disable_log_stats': True, 'model': '/tmp/merged_823qct4r'}
+The argument `trust_remote_code` is to be used with Auto classes. It has no effect here and is ignored.
+INFO 01-26 09:37:12 [model.py:547] Resolved architecture: Gemma3ForCausalLM
+WARNING 01-26 09:37:12 [model.py:1682] Your device 'NVIDIA H100 PCIe' (with compute capability 9.0) doesn't support torch.float16. Falling back to torch.bfloat16 for compatibility.
+WARNING 01-26 09:37:12 [model.py:1733] Casting torch.float16 to torch.bfloat16.
+INFO 01-26 09:37:12 [model.py:1510] Using max model len 32768
+INFO 01-26 09:37:12 [scheduler.py:205] Chunked prefill is enabled with max_num_batched_tokens=16384.
+The tokenizer you are loading from '/tmp/merged_823qct4r' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+WARNING 01-26 09:37:13 [__init__.py:3036] We must use the `spawn` multiprocessing start method. Overriding VLLM_WORKER_MULTIPROC_METHOD to 'spawn'. See https://docs.vllm.ai/en/latest/usage/troubleshooting.html#python-multiprocessing for more information. Reasons: CUDA is initialized
+INFO 01-26 09:37:16 [__init__.py:216] Automatically detected platform cuda.
+Skipping import of cpp extensions due to incompatible torch version 2.8.0+cu128 for torchao version 0.15.0             Please see https://github.com/pytorch/ao/issues/2919 for more info
+Successfully imported formatters from load_data.py.
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m INFO 01-26 09:37:18 [core.py:644] Waiting for init message from front-end.
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m INFO 01-26 09:37:18 [core.py:77] Initializing a V1 LLM engine (v0.11.0) with config: model='/tmp/merged_823qct4r', speculative_config=None, tokenizer='/tmp/merged_823qct4r', skip_tokenizer_init=False, tokenizer_mode=auto, revision=None, tokenizer_revision=None, trust_remote_code=True, dtype=torch.bfloat16, max_seq_len=32768, download_dir=None, load_format=auto, tensor_parallel_size=1, pipeline_parallel_size=1, data_parallel_size=1, disable_custom_all_reduce=False, quantization=None, enforce_eager=False, kv_cache_dtype=auto, device_config=cuda, structured_outputs_config=StructuredOutputsConfig(backend='auto', disable_fallback=False, disable_any_whitespace=False, disable_additional_properties=False, reasoning_parser=''), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None), seed=0, served_model_name=/tmp/merged_823qct4r, enable_prefix_caching=True, chunked_prefill_enabled=True, pooler_config=None, compilation_config={"level":3,"debug_dump_path":"","cache_dir":"","backend":"","custom_ops":[],"splitting_ops":["vllm.unified_attention","vllm.unified_attention_with_output","vllm.mamba_mixer2","vllm.mamba_mixer","vllm.short_conv","vllm.linear_attention","vllm.plamo2_mamba_mixer","vllm.gdn_attention","vllm.sparse_attn_indexer"],"use_inductor":true,"compile_sizes":[],"inductor_compile_config":{"enable_auto_functionalized_v2":false},"inductor_passes":{},"cudagraph_mode":[2,1],"use_cudagraph":true,"cudagraph_num_of_warmups":1,"cudagraph_capture_sizes":[512,504,496,488,480,472,464,456,448,440,432,424,416,408,400,392,384,376,368,360,352,344,336,328,320,312,304,296,288,280,272,264,256,248,240,232,224,216,208,200,192,184,176,168,160,152,144,136,128,120,112,104,96,88,80,72,64,56,48,40,32,24,16,8,4,2,1],"cudagraph_copy_inputs":false,"full_cuda_graph":false,"use_inductor_graph_partition":false,"pass_config":{},"max_capture_size":512,"local_cache_dir":null}
+[rank0]:[W126 09:37:19.271675021 ProcessGroupGloo.cpp:514] Warning: Unable to resolve hostname to a (local) address. Using the loopback address as fallback. Manually set the network interface to bind to with GLOO_SOCKET_IFNAME. (function operator())
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m INFO 01-26 09:37:19 [parallel_state.py:1208] rank 0 in world size 1 is assigned as DP rank 0, PP rank 0, TP rank 0, EP rank 0
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m WARNING 01-26 09:37:20 [topk_topp_sampler.py:66] FlashInfer is not available. Falling back to the PyTorch-native implementation of top-p & top-k sampling. For the best performance, please install FlashInfer.
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m INFO 01-26 09:37:20 [gpu_model_runner.py:2602] Starting to load model /tmp/merged_823qct4r...
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m INFO 01-26 09:37:20 [gpu_model_runner.py:2634] Loading model from scratch...
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m INFO 01-26 09:37:20 [cuda.py:366] Using Flash Attention backend on V1 engine.
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m Loading safetensors checkpoint shards:   0% Completed | 0/1 [00:00<?, ?it/s]
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m Loading safetensors checkpoint shards: 100% Completed | 1/1 [00:00<00:00,  8.57it/s]
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m Loading safetensors checkpoint shards: 100% Completed | 1/1 [00:00<00:00,  8.56it/s]
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m 
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m INFO 01-26 09:37:20 [default_loader.py:267] Loading weights took 0.13 seconds
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m INFO 01-26 09:37:20 [gpu_model_runner.py:2653] Model loading took 0.5340 GiB and 0.239908 seconds
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m INFO 01-26 09:37:23 [backends.py:548] Using cache directory: /home/zihan/.cache/vllm/torch_compile_cache/477d35d5ff/rank_0_0/backbone for vLLM's torch.compile
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m INFO 01-26 09:37:23 [backends.py:559] Dynamo bytecode transform time: 2.59 s
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m INFO 01-26 09:37:27 [backends.py:197] Cache the graph for dynamic shape for later use
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m INFO 01-26 09:37:36 [backends.py:218] Compiling a graph for dynamic shape takes 12.76 s
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m INFO 01-26 09:37:40 [monitor.py:34] torch.compile takes 15.35 s in total
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m INFO 01-26 09:37:41 [gpu_worker.py:298] Available KV cache memory: 57.01 GiB
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m INFO 01-26 09:37:42 [kv_cache_utils.py:1087] GPU KV cache size: 3,320,944 tokens
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m INFO 01-26 09:37:42 [kv_cache_utils.py:1091] Maximum concurrency for 32,768 tokens per request: 169.83x
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):   0%|          | 0/67 [00:00<?, ?it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):   7%|▋         | 5/67 [00:00<00:01, 45.34it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  15%|█▍        | 10/67 [00:00<00:01, 47.13it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  24%|██▍       | 16/67 [00:00<00:01, 48.98it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  31%|███▏      | 21/67 [00:00<00:00, 48.36it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  39%|███▉      | 26/67 [00:00<00:00, 48.53it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  46%|████▋     | 31/67 [00:00<00:00, 48.64it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  54%|█████▎    | 36/67 [00:00<00:00, 47.75it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  61%|██████    | 41/67 [00:00<00:00, 47.10it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  70%|███████   | 47/67 [00:00<00:00, 49.81it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  78%|███████▊  | 52/67 [00:01<00:00, 48.14it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  85%|████████▌ | 57/67 [00:01<00:00, 47.83it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE):  94%|█████████▍| 63/67 [00:01<00:00, 51.10it/s]Capturing CUDA graphs (mixed prefill-decode, PIECEWISE): 100%|██████████| 67/67 [00:01<00:00, 49.45it/s]
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m Capturing CUDA graphs (decode, FULL):   0%|          | 0/67 [00:00<?, ?it/s]Capturing CUDA graphs (decode, FULL):  10%|█         | 7/67 [00:00<00:00, 69.97it/s]Capturing CUDA graphs (decode, FULL):  22%|██▏       | 15/67 [00:00<00:00, 73.09it/s]Capturing CUDA graphs (decode, FULL):  34%|███▍      | 23/67 [00:00<00:00, 74.64it/s]Capturing CUDA graphs (decode, FULL):  46%|████▋     | 31/67 [00:00<00:00, 75.30it/s]Capturing CUDA graphs (decode, FULL):  58%|█████▊    | 39/67 [00:00<00:00, 76.03it/s]Capturing CUDA graphs (decode, FULL):  70%|███████   | 47/67 [00:00<00:00, 76.59it/s]Capturing CUDA graphs (decode, FULL):  82%|████████▏ | 55/67 [00:00<00:00, 77.04it/s]Capturing CUDA graphs (decode, FULL):  94%|█████████▍| 63/67 [00:00<00:00, 77.95it/s]Capturing CUDA graphs (decode, FULL): 100%|██████████| 67/67 [00:00<00:00, 76.55it/s]
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m INFO 01-26 09:37:44 [gpu_model_runner.py:3480] Graph capturing finished in 3 secs, took 0.74 GiB
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m INFO 01-26 09:37:44 [core.py:210] init engine (profile, create kv cache, warmup model) took 24.03 seconds
+[1;36m(EngineCore_DP0 pid=2789544)[0;0m The tokenizer you are loading from '/tmp/merged_823qct4r' with an incorrect regex pattern: https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/discussions/84#69121093e8b480e709447d5e. This will lead to incorrect tokenization. You should set the `fix_mistral_regex=True` flag when loading this tokenizer to fix this issue.
+INFO 01-26 09:37:47 [llm.py:306] Supported_tasks: ['generate']
+
+========================================
+Processing: date
+========================================
+Adding requests:   0%|          | 0/169 [00:00<?, ?it/s]Adding requests: 100%|██████████| 169/169 [00:00<00:00, 1885.89it/s]
+Processed prompts:   0%|          | 0/169 [00:00<?, ?it/s, est. speed input: 0.00 toks/s, output: 0.00 toks/s]Processed prompts:   1%|          | 2/169 [00:00<00:09, 17.58it/s, est. speed input: 3472.66 toks/s, output: 158.21 toks/s]Processed prompts:  28%|██▊       | 48/169 [00:00<00:00, 261.35it/s, est. speed input: 45092.81 toks/s, output: 3364.32 toks/s]Processed prompts:  45%|████▍     | 76/169 [00:01<00:02, 39.58it/s, est. speed input: 9441.90 toks/s, output: 2922.88 toks/s]  Processed prompts:  54%|█████▍    | 92/169 [00:04<00:05, 15.39it/s, est. speed input: 4266.72 toks/s, output: 2903.82 toks/s]Processed prompts:  60%|██████    | 102/169 [00:10<00:12,  5.58it/s, est. speed input: 1901.14 toks/s, output: 2618.13 toks/s]Processed prompts: 100%|██████████| 169/169 [00:10<00:00,  5.58it/s, est. speed input: 3141.25 toks/s, output: 15210.22 toks/s]Processed prompts: 100%|██████████| 169/169 [00:10<00:00, 15.51it/s, est. speed input: 3141.25 toks/s, output: 15210.22 toks/s]
+[rank0]:[W126 09:37:59.744970216 ProcessGroupNCCL.cpp:1538] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+Accuracy for date: 4.14%
+Saved results to: results_final/date/student_model_iter_2_gemma_sft_onpolicy/eval_results.json

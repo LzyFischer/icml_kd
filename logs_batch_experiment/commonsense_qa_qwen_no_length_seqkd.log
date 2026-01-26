@@ -1,0 +1,72 @@
+INFO 01-26 14:59:48 [__init__.py:216] Automatically detected platform cuda.
+Skipping import of cpp extensions due to incompatible torch version 2.8.0+cu128 for torchao version 0.15.0             Please see https://github.com/pytorch/ao/issues/2919 for more info
+Traceback (most recent call last):
+  File "/home/zihan/icml_kd/generate_dataset_vllm.py", line 5, in <module>
+    from vllm import LLM, SamplingParams
+  File "<frozen importlib._bootstrap>", line 1412, in _handle_fromlist
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/vllm/__init__.py", line 68, in __getattr__
+    module = import_module(module_name, __package__)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/importlib/__init__.py", line 90, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/vllm/entrypoints/llm.py", line 17, in <module>
+    from vllm.config import (CompilationConfig, ModelDType,
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/vllm/config/__init__.py", line 35, in <module>
+    from vllm.config.model import (ConvertOption, HfOverrides, LogprobsMode,
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/vllm/config/model.py", line 25, in <module>
+    from vllm.transformers_utils.config import (
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/vllm/transformers_utils/config.py", line 21, in <module>
+    from transformers.models.auto.image_processing_auto import (
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/transformers/models/auto/image_processing_auto.py", line 28, in <module>
+    from ...image_processing_utils_fast import BaseImageProcessorFast
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/transformers/image_processing_utils_fast.py", line 43, in <module>
+    from .processing_utils import Unpack
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/transformers/processing_utils.py", line 75, in <module>
+    from .modeling_utils import PreTrainedAudioTokenizerBase
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/transformers/modeling_utils.py", line 73, in <module>
+    from .quantizers import HfQuantizer
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/transformers/quantizers/__init__.py", line 14, in <module>
+    from .auto import AutoHfQuantizer, AutoQuantizationConfig, register_quantization_config, register_quantizer
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/transformers/quantizers/auto.py", line 62, in <module>
+    from .quantizer_torchao import TorchAoHfQuantizer
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/transformers/quantizers/quantizer_torchao.py", line 39, in <module>
+    import torchao
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/torchao/__init__.py", line 122, in <module>
+    from torchao.quantization import (
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/torchao/quantization/__init__.py", line 6, in <module>
+    from .autoquant import (
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/torchao/quantization/autoquant.py", line 11, in <module>
+    from torchao.dtypes import (
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/torchao/dtypes/__init__.py", line 1, in <module>
+    from . import affine_quantized_tensor_ops
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/torchao/dtypes/affine_quantized_tensor_ops.py", line 14, in <module>
+    from torchao.dtypes.floatx.cutlass_semi_sparse_layout import (
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/torchao/dtypes/floatx/__init__.py", line 1, in <module>
+    from .cutlass_semi_sparse_layout import (
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/torchao/dtypes/floatx/cutlass_semi_sparse_layout.py", line 19, in <module>
+    from torchao.ops import (
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/torchao/ops.py", line 136, in <module>
+    @register_custom_op("torchao::quant_llm_linear")
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/torchao/ops.py", line 84, in decorator
+    return torch.library.register_fake(f"{name}")(func)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/torch/library.py", line 1069, in register
+    use_lib._register_fake(
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/torch/library.py", line 198, in _register_fake
+    source = torch._library.utils.get_source(_stacklevel + 1)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/site-packages/torch/_library/utils.py", line 54, in get_source
+    frame = inspect.getframeinfo(sys._getframe(stacklevel))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/inspect.py", line 1718, in getframeinfo
+    lines, lnum = findsource(frame)
+                  ^^^^^^^^^^^^^^^^^
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/inspect.py", line 1090, in findsource
+    module = getmodule(object, file)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/zihan/miniconda3/envs/unslothvllm/lib/python3.12/inspect.py", line 1007, in getmodule
+    if ismodule(module) and hasattr(module, '__file__'):
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

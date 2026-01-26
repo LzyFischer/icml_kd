@@ -8,8 +8,8 @@ student_model: unsloth/gemma-3-270m-it
 # unsloth/Qwen2.5-0.5B-Instruct
 
 # Data (Point to your uploaded files)
-train_file: ./data/anli/train.jsonl
-val_file: ./data/anli/test.jsonl
+train_file: ./data/math/train.jsonl
+val_file: ./data/math/test.jsonl
 prompt_column: "instruction"
 response_column: "response"  # Matches your json file keys
 

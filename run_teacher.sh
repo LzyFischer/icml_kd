@@ -48,19 +48,19 @@ experiments=(
     # "python train_redi.py --max_steps 100 --teacher_model unsloth/gemma-3-1b-it --student_model unsloth/gemma-3-270m-it --train_file ./data/commonsense_qa/train.jsonl --num_epochs 1 --run_name teacher_gemma_no_length --w_length 0.0"
     
     # SFT基线
-    "python train_sft.py --train_file ./data/strategy_qa/train.jsonl --max_steps 100 --run_name teacher_sft"
-    "python train_sft.py --train_file ./data/anli/train.jsonl --num_epochs 5 --run_name teacher_sft"
-    "python train_sft.py --train_file ./data/date/train.jsonl --num_epochs 5 --run_name teacher_sft"
-    "python train_sft.py --train_file ./data/math/train.jsonl --num_epochs 1 --max_train_samples 500 --max_length 2048 --run_name teacher_sft"
-    "python train_sft.py --train_file ./data/arc_challenge/train.jsonl --num_epochs 2 --run_name teacher_sft"
+    # "python train_sft.py --train_file ./data/strategy_qa/train.jsonl --max_steps 100 --run_name teacher_sft"
+    # "python train_sft.py --train_file ./data/anli/train.jsonl --num_epochs 2 --run_name teacher_sft"
+    # "python train_sft.py --train_file ./data/date/train.jsonl --num_epochs 2 --run_name teacher_sft"
+    # "python train_sft.py --train_file ./data/math/train.jsonl --num_epochs 1 --max_train_samples 500 --max_length 2048 --run_name teacher_sft"
+    # "python train_sft.py --train_file ./data/arc_challenge/train.jsonl --num_epochs 2 --run_name teacher_sft"
     "python train_sft.py --max_steps 800 --train_file ./data/commonsense_qa/train.jsonl --num_epochs 1 --run_name teacher_sft"
 
     # "python train_sft.py --teacher_model unsloth/gemma-3-1b-it --student_model unsloth/gemma-3-270m-it --train_file ./data/strategy_qa/train.jsonl --max_steps 100 --run_name teacher_gemma_sft"
-    # "python train_sft.py --teacher_model unsloth/gemma-3-1b-it --student_model unsloth/gemma-3-270m-it --train_file ./data/anli/train.jsonl --num_epochs 5 --run_name teacher_gemma_sft"
-    # "python train_sft.py --teacher_model unsloth/gemma-3-1b-it --student_model unsloth/gemma-3-270m-it --train_file ./data/date/train.jsonl --num_epochs 5 --run_name teacher_gemma_sft"
+    # "python train_sft.py --teacher_model unsloth/gemma-3-1b-it --student_model unsloth/gemma-3-270m-it --train_file ./data/anli/train.jsonl --num_epochs 2 --run_name teacher_gemma_sft"
+    # "python train_sft.py --teacher_model unsloth/gemma-3-1b-it --student_model unsloth/gemma-3-270m-it --train_file ./data/date/train.jsonl --num_epochs 2 --run_name teacher_gemma_sft"
     # "python train_sft.py --teacher_model unsloth/gemma-3-1b-it --student_model unsloth/gemma-3-270m-it --train_file ./data/math/train.jsonl --num_epochs 1 --max_train_samples 500 --max_length 2048 --run_name teacher_gemma_sft"
     # "python train_sft.py --teacher_model unsloth/gemma-3-1b-it --student_model unsloth/gemma-3-270m-it --train_file ./data/arc_challenge/train.jsonl --num_epochs 2 --run_name teacher_gemma_sft"
-    # "python train_sft.py --max_steps 800 --teacher_model unsloth/gemma-3-1b-it --student_model unsloth/gemma-3-270m-it --train_file ./data/commonsense_qa/train.jsonl --num_epochs 1 --run_name teacher_gemma_sft"
+    "python train_sft.py --max_steps 800 --teacher_model unsloth/gemma-3-1b-it --student_model unsloth/gemma-3-270m-it --train_file ./data/commonsense_qa/train.jsonl --num_epochs 1 --run_name teacher_gemma_sft"
     
 
     # Ablation: no_answer
@@ -80,7 +80,8 @@ experiments=(
 )
 
 # GPU数量
-NUM_GPUS=4
+CUDA_VISIBLE_DEVICES=1,2,3
+NUM_GPUS=3
 
 # 创建日志目录
 LOG_DIR="./logs"

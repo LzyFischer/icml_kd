@@ -3,5 +3,17 @@ unsloth_compiled_cache/
 wandb/
 __pycache__/
 logs/
+results/*
+results_final/*
+results_teacher_final/*
+temp_data_seqkd/*
+kl_partition_results/*
+iterative_workspace/*
+candidates/
+logs_batch_experiment/
+logs_eval/
+logs_teacher_eval/
+
+
 
 grpo_trainer_lora_model*/
